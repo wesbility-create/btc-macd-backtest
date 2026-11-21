@@ -58,7 +58,7 @@ $('run').addEventListener('click',async()=>{
     if(!/^[A-Z0-9]{5,24}$/.test(symbol))throw Error('請輸入有效交易對，例如 BTCUSDT');
     const candles=await download({symbol,market,interval,start:$('start').value,end:$('end').value});
     if(candles.length<50)throw Error('有效 K 線不足 50 根');
-    const opts={rr:+$('rr').value,feeBps:+$('fee').value,slippageBps:+$('slippage').value,maxBars:+$('maxbars').value,firstOnly:$('firstonly').checked,riskPct:+$('risk').value,equity:10000};
+    const opts={rr:+$('rr').value,feeBps:+$('fee').value,slippageBps:+$('slippage').value,maxBars:+$('maxbars').value,firstOnly:true,riskPct:+$('risk').value,equity:10000};
     if([opts.rr,opts.feeBps,opts.slippageBps,opts.maxBars,opts.riskPct].some(x=>!Number.isFinite(x)||x<0)||opts.rr<=0||opts.maxBars<1||opts.riskPct<=0||opts.riskPct>10)throw Error('參數設定不合理');
     last=backtest(candles,opts);const s=last.stats;
     $('count').textContent=s.count;$('winrate').textContent=fmt(s.winRate)+'%';$('avgR').textContent=fmt(s.avgR,3)+'R';$('pf').textContent=fmt(s.profitFactor);$('dd').textContent=fmt(s.maxDrawdownPct)+'%';$('totalR').textContent=fmt(s.totalR,2)+'R';$('targets').textContent=s.targets;$('stops').textContent=s.stops;

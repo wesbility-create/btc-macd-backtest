@@ -9,17 +9,20 @@ export function enrich(candles, fast=12, slow=26, signal=9) {
   return candles.map((c,i)=>({...c,dif:dif[i],dea:dea[i],hist:2*(dif[i]-dea[i])}));
 }
 export function backtest(raw,opts={}) {
-  const {rr=5,feeBps=4,slippageBps=2, firstOnly=false, maxBars=288, equity=10000, riskPct=0.5}=opts;
+  const {rr=5,feeBps=4,slippageBps=2, firstOnly=true, maxBars=288, equity=10000, riskPct=0.5}=opts;
   const candles=enrich(raw), trades=[];
   const roundTripRate=2*(Number(feeBps)+Number(slippageBps))/10000;
   let i=35, equityNow=Number(equity), peak=equityNow, maxDD=0;
   while(i<candles.length-1) {
     const c=candles[i], prev=candles[i-1], before=candles[i-2];
-    const long=c.dif>0 && c.dea>0 && c.hist>0 && prev.hist>0 && c.hist>prev.hist;
-    const short=c.dif<0 && c.dea<0 && c.hist<0 && prev.hist<0 && c.hist<prev.hist;
-    const firstLong=!(prev.hist>0 && before.hist>0 && prev.hist>before.hist);
-    const firstShort=!(prev.hist<0 && before.hist<0 && prev.hist<before.hist);
-    if ((!long&&!short) || (firstOnly && !(long&&firstLong || short&&firstShort))) {i++;continue;}
+    // Signal only on the FIRST histogram bar that expands after contraction.
+    // All three histogram bars must have the same sign. Strict inequalities:
+    // ties and zero bars are not a shortening-to-expansion reversal.
+    const long=c.dif>0 && c.dea>0 && before.hist>0 && prev.hist>0 && c.hist>0
+      && before.hist>prev.hist && c.hist>prev.hist;
+    const short=c.dif<0 && c.dea<0 && before.hist<0 && prev.hist<0 && c.hist<0
+      && before.hist<prev.hist && c.hist<prev.hist;
+    if (!long && !short) {i++;continue;}
     const side=long?'LONG':'SHORT', sign=long?1:-1;
     const entryBar=candles[i+1], rawEntry=entryBar.open;
     const entry=rawEntry*(1+sign*slippageBps/10000);
