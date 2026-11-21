@@ -18,15 +18,32 @@ export function backtest(raw,opts={}) {
     // Signal only on the FIRST histogram bar that expands after contraction.
     // All three histogram bars must have the same sign. Strict inequalities:
     // ties and zero bars are not a shortening-to-expansion reversal.
-    const long=c.dif>0 && c.dea>0 && before.hist>0 && prev.hist>0 && c.hist>0
-      && before.hist>prev.hist && c.hist>prev.hist;
-    const short=c.dif<0 && c.dea<0 && before.hist<0 && prev.hist<0 && c.hist<0
-      && before.hist<prev.hist && c.hist<prev.hist;
-    if (!long && !short) {i++;continue;}
+    // Histogram slope reversal, independent of histogram sign.
+    // Retain DIF/DEA zero-line filter, as confirmed.
+    const long=c.dif>0 && c.dea>0 &&
+      prev.hist<before.hist && c.hist>prev.hist;
+    const short=c.dif<0 && c.dea<0 &&
+      prev.hist>before.hist && c.hist<prev.hist;
+    if(!long&&!short) {i++;continue;}
     const side=long?'LONG':'SHORT', sign=long?1:-1;
     const entryBar=candles[i+1], rawEntry=entryBar.open;
     const entry=rawEntry*(1+sign*slippageBps/10000);
-    const stop=long?prev.low:prev.high;
+    // Most recent CONFIRMED 2-left/2-right swing pivot.
+    // p <= i-2 ensures both right-hand candles have closed by signal bar i.
+    // Strict inequality: equal highs/lows are not pivots.
+    let stop=null;
+    for(let p=i-2;p>=2;p--) {
+      const v=candles[p];
+      if(long && v.low<candles[p-1].low && v.low<candles[p-2].low &&
+         v.low<candles[p+1].low && v.low<candles[p+2].low) {
+        stop=v.low;break;
+      }
+      if(short && v.high>candles[p-1].high && v.high>candles[p-2].high &&
+         v.high>candles[p+1].high && v.high>candles[p+2].high) {
+        stop=v.high;break;
+      }
+    }
+    if(stop===null) {i++;continue;}
     const risk=sign*(entry-stop);
     if(risk<=0 || !Number.isFinite(risk)) {i++;continue;}
     const target=entry+sign*rr*risk;
