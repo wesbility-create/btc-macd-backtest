@@ -1,4 +1,5 @@
-import {backtest} from './engine.js';
+import {backtest,enrich} from './engine.js';
+import {renderCharts,focusTrade,fitCharts} from './charts.js';
 const $=id=>document.getElementById(id);
 const today=new Date(), before=new Date(Date.now()-30*86400000);
 $('end').value=today.toISOString().slice(0,10);$('start').value=before.toISOString().slice(0,10);
@@ -63,10 +64,18 @@ $('run').addEventListener('click',async()=>{
     last=backtest(candles,opts);const s=last.stats;
     $('count').textContent=s.count;$('winrate').textContent=fmt(s.winRate)+'%';$('avgR').textContent=fmt(s.avgR,3)+'R';$('pf').textContent=fmt(s.profitFactor);$('dd').textContent=fmt(s.maxDrawdownPct)+'%';$('totalR').textContent=fmt(s.totalR,2)+'R';$('targets').textContent=s.targets;$('stops').textContent=s.stops;
     $('details').innerHTML='';for(const t of last.trades.slice(-300).reverse()){
-      const tr=document.createElement('tr');for(const val of [dt(t.entryTime),t.side,fmt(t.entry),fmt(t.stop),fmt(t.target),fmt(t.exit),fmt(t.netR,2),t.reason]){const td=document.createElement('td');td.textContent=val;tr.appendChild(td)}$('details').appendChild(tr);
+      const tr=document.createElement('tr');for(const val of [dt(t.entryTime),t.side,fmt(t.entry),fmt(t.stop),fmt(t.target),fmt(t.exit),fmt(t.netR,2),t.reason]){const td=document.createElement('td');td.textContent=val;tr.appendChild(td)}
+      tr.tabIndex=0;tr.title='點擊查看這筆交易的 K 線';
+      const jump=()=>{document.querySelectorAll('#details tr.selected').forEach(x=>x.classList.remove('selected'));tr.classList.add('selected');focusTrade(t);document.getElementById('price-chart').scrollIntoView({behavior:'smooth',block:'center'});};
+      tr.addEventListener('click',jump);tr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();jump();}});
+      $('details').appendChild(tr);
     }
-    $('results').hidden=false;setStatus(`完成：${candles.length.toLocaleString()} 根已收盤 K 線、${s.count} 筆交易。時間採 UTC 下載，畫面以台灣時間顯示。`);
+    $('results').hidden=false;
+    try{renderCharts(enrich(candles),last.trades);}catch(chartError){$('chart-status').textContent='圖表載入失敗：'+chartError.message+'。回測數據仍可查看。';}
+    setStatus(`完成：${candles.length.toLocaleString()} 根已收盤 K 線、${s.count} 筆交易。時間採 UTC 下載，畫面以台灣時間顯示。`);
   }catch(e){setStatus('錯誤：'+e.message);}finally{$('run').disabled=false;$('run').textContent='開始下載並回測';}
 });
 $('export').addEventListener('click',()=>{if(!last)return;const blob=new Blob(['\uFEFF'+csv(last.trades)],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='macd_5r_trades.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+
+$('fit-chart').addEventListener('click',fitCharts);
